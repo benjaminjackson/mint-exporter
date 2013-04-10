@@ -72,7 +72,7 @@ def create_database_from_csv
       x = t.to_hash
       x['Date'] = dateobj(x['Date'])
       x['Amount'] = x['Amount'].to_i
-      if Date.parse(x['Date']) > START_DATE
+      if Date.parse(x['Date']) > START_DATE && x['Category'] != 'Exclude From Mint'
         Transaction.create! date: x['Date'],
           description: x['Description'],
           original_description: x['Original Description'],
