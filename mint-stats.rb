@@ -8,30 +8,33 @@ require 'dm-aggregates'
 require 'active_support/all'
 require "uri"
 require "mechanize"
+require 'trollop'
 
-hostname = "https://wwws.mint.com/"
+HOSTNAME = "https://wwws.mint.com/"
 
-unless ARGV.length == 3
-  puts "Usage: ruby #{$0} USERNAME PASSWORD OUTFILE"
-  exit 1
+@opts = Trollop::options do
+  opt :email, "Email", :type => String, :short => 'e', :required => true
+  opt :password, "Password", :type => String, :short => 'p', :required => true
+  opt :outfile, "Output File", :type => String, :short => 'o', :default => "output.json"
+  opt :type, "Transaction Type ('debit' or 'credit')", :type => String, :short => 't', :default => "debit"
+  opt :title, "Graph Title", :type => String, :short => 'T', :default => "Spending"
+  opt :num_days, "Number of Days", :type => :integer, :short => 'n', :default => 30
+  opt :show_every_label, "Show All Labels", :type => :boolean, :short => 'l', :default => false
 end
-
-username = ARGV[0]
-password = ARGV[1]
 
 agent = Mechanize.new
 agent.pluggable_parser.default = Mechanize::Download
 
-page  = agent.get(URI.join hostname, "/login.event")
+page  = agent.get(URI.join HOSTNAME, "/login.event")
 form = page.form_with(:id => "form-login")
 
-form.username = username
-form.password = password
+form.username = @opts[:email]
+form.password = @opts[:password]
 form.submit
 
-TRANSACTIONS_CSV = agent.get(URI.join hostname, "/transactionDownload.event").body
+TRANSACTIONS_CSV = agent.get(URI.join HOSTNAME, "/transactionDownload.event").body
 
-START_DATE = Date.today - 30
+START_DATE = Date.today - @opts[:num_days]
 END_DATE = Date.today
 
 begin # define ActiveRecord objects
@@ -109,30 +112,25 @@ create_database_from_csv
 
 graph = {
   :graph => {
-    :title => "Income/Spending: Past 30 Days",
+    :title => @opts[:title],
     :type => "bar",
     :total => true,
     :yAxis => { :units => { :prefix => "$" } },
+    :xAxis => { :showEveryLabel => @opts[:show_every_label] },
     :datasequences => [
-      { :title => "Income", :color => "Green", :datapoints => [] },
-      { :title => "Spending", :color => "Red", :datapoints => [] }
+      { :title => @opts[:type].titlecase, :color => "Green", :datapoints => [] },
     ]
   }
 }
 
 (START_DATE..END_DATE).each do |day|
-  debit = TransactionType.first(:name => 'debit')
-  credit = TransactionType.first(:name => 'credit')
+  transactions = TransactionType.first(:name => @opts[:type])
   graph[:graph][:datasequences][0][:datapoints] << {
     :title => day.strftime("%m/%d/%Y"), 
-    :value => Transaction.sum(:amount, :date => day, :transaction_type => credit).to_f 
-  }
-  graph[:graph][:datasequences][1][:datapoints] << {
-    :title => day.strftime("%m/%d/%Y"), 
-    :value => Transaction.sum(:amount, :date => day, :transaction_type => debit).to_f 
+    :value => Transaction.sum(:amount, :date => day, :transaction_type => transactions).to_f 
   }
 end
 
-File.open(ARGV[2], 'w') do |file|
+File.open(@opts[:outfile], 'w') do |file|
   file.write(graph.to_json)
 end
