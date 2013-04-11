@@ -10,8 +10,8 @@ require "mechanize"
 
 hostname = "https://wwws.mint.com/"
 
-unless ARGV.length == 2
-  puts "Usage: ruby #{$0} USERNAME PASSWORD"
+unless ARGV.length == 3
+  puts "Usage: ruby #{$0} USERNAME PASSWORD OUTFILE"
   exit 1
 end
 
@@ -107,7 +107,7 @@ end
 create_database_from_csv
 
 output = [["Date", "Spending"]]
-CSV.open("output.csv", "wb") do |csv|
+CSV.open(ARGV[2], "wb") do |csv|
   (START_DATE..END_DATE).each do |day|
     debit = TransactionType.first(:name => 'debit')
     csv << [day.strftime("%m/%d/%Y"), Transaction.sum(:amount, :date => day, :transaction_type => debit)]
