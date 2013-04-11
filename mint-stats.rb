@@ -106,10 +106,15 @@ end
 
 create_database_from_csv
 
-output = [["Date", "Spending"]]
 CSV.open(ARGV[2], "wb") do |csv|
+  csv << ["Income/Spending: Past 30 Days", "Income", "Spending"]
   (START_DATE..END_DATE).each do |day|
     debit = TransactionType.first(:name => 'debit')
-    csv << [day.strftime("%m/%d/%Y"), Transaction.sum(:amount, :date => day, :transaction_type => debit)]
+    credit = TransactionType.first(:name => 'credit')
+    csv << [day.strftime("%m/%d/%Y"), 
+      Transaction.sum(:amount, :date => day, :transaction_type => credit), 
+      Transaction.sum(:amount, :date => day, :transaction_type => debit)]
   end
+  csv << ["Colors", "green", "red"]
+  csv << ["Totals"]
 end
