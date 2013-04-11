@@ -1,6 +1,7 @@
 require 'csv'
 require 'date'
 require 'yaml'
+require 'json'
 require 'data_mapper'
 require 'dm-ar-finders'
 require 'dm-aggregates'
@@ -106,15 +107,32 @@ end
 
 create_database_from_csv
 
-CSV.open(ARGV[2], "wb") do |csv|
-  csv << ["Income/Spending: Past 30 Days", "Income", "Spending"]
-  (START_DATE..END_DATE).each do |day|
-    debit = TransactionType.first(:name => 'debit')
-    credit = TransactionType.first(:name => 'credit')
-    csv << [day.strftime("%m/%d/%Y"), 
-      Transaction.sum(:amount, :date => day, :transaction_type => credit), 
-      Transaction.sum(:amount, :date => day, :transaction_type => debit)]
-  end
-  csv << ["Colors", "green", "red"]
-  csv << ["Totals"]
+graph = {
+  :graph => {
+    :title => "Income/Spending: Past 30 Days",
+    :type => "bar",
+    :total => true,
+    :yAxis => { :units => { :prefix => "$" } },
+    :datasequences => [
+      { :title => "Income", :color => "Green", :datapoints => [] },
+      { :title => "Spending", :color => "Red", :datapoints => [] }
+    ]
+  }
+}
+
+(START_DATE..END_DATE).each do |day|
+  debit = TransactionType.first(:name => 'debit')
+  credit = TransactionType.first(:name => 'credit')
+  graph[:graph][:datasequences][0][:datapoints] << {
+    :title => day.strftime("%m/%d/%Y"), 
+    :value => Transaction.sum(:amount, :date => day, :transaction_type => credit).to_f 
+  }
+  graph[:graph][:datasequences][1][:datapoints] << {
+    :title => day.strftime("%m/%d/%Y"), 
+    :value => Transaction.sum(:amount, :date => day, :transaction_type => debit).to_f 
+  }
+end
+
+File.open(ARGV[2], 'w') do |file|
+  file.write(graph.to_json)
 end
